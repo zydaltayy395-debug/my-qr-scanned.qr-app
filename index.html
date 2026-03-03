@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام عدي الذكي</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+body{margin:0;font-family:sans-serif;background:#0d1b2a;color:#00f5ff}
+.main{display:flex;flex-wrap:wrap;min-height:100vh}
+.section{flex:1;min-width:360px;padding:15px}
+.left{background:#1b263b}
+.right{background:#16213e}
+h2{text-align:center}
+.card{background:#0f3460;padding:10px;border-radius:10px;margin:10px 0}
+input,button{
+width:95%;
+padding:10px;
+margin:5px 0;
+border-radius:8px;
+border:none;
+font-size:15px;
+}
+button{cursor:pointer;font-weight:bold}
+.green{background:#2ec4b6;color:white}
+.blue{background:#0077b6;color:white}
+.red{background:#e63946;color:white}
+
+table{
+width:100%;
+background:white;
+color:black;
+border-collapse:collapse;
+margin-top:5px;
+}
+th,td{padding:6px;border-bottom:1px solid #ccc;font-size:13px}
+</style>
+</head>
+
+<body>
+
+<div class="main">
+
+<!-- قسم البيع -->
+<div class="section left">
+
+<h2>🏪 واجهة البيع</h2>
+
+<div id="reader" style="width:100%;display:none"></div>
+<button class="blue" onclick="startScanner()">📷 مسح باركود</button>
+
+<input type="text" id="barcode" placeholder="الباركود">
+<input type="number" id="qty" value="1" placeholder="العدد">
+<input type="number" id="cost" placeholder="سعر الجملة">
+
+<button class="green" onclick="addSale()">تسجيل بيع</button>
+
+<div class="card">
+<p>عدد العمليات: <span id="count">0</span></p>
+<p>إجمالي البيع: <span id="totalSell">0</span></p>
+<p>إجمالي الربح: <span id="totalProfit">0</span></p>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>باركود</th>
+<th>عدد</th>
+<th>بيع</th>
+<th>حذف</th>
+</tr>
+</thead>
+<tbody id="salesList"></tbody>
+</table>
+
+</div>
+
+<!-- قسم الحسابات -->
+<div class="section right">
+
+<h2>📊 الحسابات والديون</h2>
+
+<div class="card">
+<h3>💳 إضافة دين</h3>
+<input type="text" id="debtorName" placeholder="اسم الزبون">
+<input type="number" id="debtAmount" placeholder="المبلغ">
+<button class="green" onclick="addDebt()">إضافة</button>
+
+<h4>📋 قائمة الديون</h4>
+<table>
+<thead>
+<tr>
+<th>الاسم</th>
+<th>المبلغ</th>
+<th>تسديد</th>
+</tr>
+</thead>
+<tbody id="debtList"></tbody>
+</table>
+
+<p>إجمالي الديون: <span id="totalDebt">0</span></p>
+</div>
+
+<div class="card">
+<h3>📅 التقارير</h3>
+<button class="blue" onclick="weeklyReport()">ربح الأسبوع</button>
+<p id="weekProfit"></p>
+
+<button class="blue" onclick="monthlyReport()">ربح الشهر</button>
+<p id="monthProfit"></p>
+</div>
+
+<button class="red" onclick="clearToday()">تصفير مبيعات اليوم</button>
+
+</div>
+</div>
+
+<script>
+
+let html5QrCode;
+
+// فتح كاميرة الموبايل الخلفية
+function startScanner(){
+document.getElementById("reader").style.display="block";
+html5QrCode=new Html5Qrcode("reader");
+
+html5QrCode.start(
+{ facingMode: { exact: "environment" } }, // الكاميرا الخلفية
+{ fps: 10, qrbox: 250 },
+(decodedText)=>{
+document.getElementById("barcode").value=decodedText;
+html5QrCode.stop();
+document.getElementById("reader").style.display="none";
+},
+()=>{}
+).catch(()=>{
+alert("لازم تسمح للكاميرا");
+});
+}
+
+// ===== البيع =====
+function addSale(){
+let b=document.getElementById("barcode").value;
+let q=parseInt(document.getElementById("qty").value);
+let c=parseInt(document.getElementById("cost").value);
+if(!b||!c)return;
+
+let sell=Math.round(c*1.25);
+let profit=(sell-c)*q;
+
+let today=new Date().toLocaleDateString();
+let key="sales_"+today;
+
+let sales=JSON.parse(localStorage.getItem(key))||[];
+sales.push({b,q,sell,profit});
+localStorage.setItem(key,JSON.stringify(sales));
+
+document.getElementById("barcode").value="";
+document.getElementById("cost").value="";
+document.getElementById("qty").value=1;
+
+showSales();
+}
+
+function deleteSale(index){
+let today=new Date().toLocaleDateString();
+let key="sales_"+today;
+let sales=JSON.parse(localStorage.getItem(key))||[];
+sales.splice(index,1);
+localStorage.setItem(key,JSON.stringify(sales));
+showSales();
+}
+
+function showSales(){
+let today=new Date().toLocaleDateString();
+let key="sales_"+today;
+let sales=JSON.parse(localStorage.getItem(key))||[];
+
+let html="";
+let totalSell=0;
+let totalProfit=0;
+
+sales.forEach((s,i)=>{
+html+=`<tr>
+<td>${s.b}</td>
+<td>${s.q}</td>
+<td>${s.sell}</td>
+<td><button onclick="deleteSale(${i})">❌</button></td>
+</tr>`;
+totalSell+=s.sell*s.q;
+totalProfit+=s.profit;
+});
+
+document.getElementById("salesList").innerHTML=html;
+document.getElementById("totalSell").innerText=totalSell;
+document.getElementById("totalProfit").innerText=totalProfit;
+document.getElementById("count").innerText=sales.length;
+}
+
+// ===== الديون =====
+function addDebt(){
+let name=document.getElementById("debtorName").value;
+let amount=parseInt(document.getElementById("debtAmount").value);
+if(!name||!amount)return;
+
+let debts=JSON.parse(localStorage.getItem("adi_debts"))||[];
+debts.push({name,amount});
+localStorage.setItem("adi_debts",JSON.stringify(debts));
+
+document.getElementById("debtorName").value="";
+document.getElementById("debtAmount").value="";
+showDebts();
+}
+
+function payDebt(index){
+let debts=JSON.parse(localStorage.getItem("adi_debts"))||[];
+debts.splice(index,1);
+localStorage.setItem("adi_debts",JSON.stringify(debts));
+showDebts();
+}
+
+function showDebts(){
+let debts=JSON.parse(localStorage.getItem("adi_debts"))||[];
+let html="";
+let total=0;
+
+debts.forEach((d,i)=>{
+total+=d.amount;
+html+=`<tr>
+<td>${d.name}</td>
+<td>${d.amount}</td>
+<td><button onclick="payDebt(${i})">✔</button></td>
+</tr>`;
+});
+
+document.getElementById("debtList").innerHTML=html;
+document.getElementById("totalDebt").innerText=total;
+}
+
+// ===== التقارير =====
+function weeklyReport(){
+let total=0;
+for(let i=0;i<7;i++){
+let d=new Date();
+d.setDate(d.getDate()-i);
+let key="sales_"+d.toLocaleDateString();
+let sales=JSON.parse(localStorage.getItem(key))||[];
+sales.forEach(s=> total+=s.profit);
+}
+document.getElementById("weekProfit").innerText="ربح الأسبوع: "+total;
+}
+
+function monthlyReport(){
+let total=0;
+let now=new Date();
+for(let i=1;i<=31;i++){
+let d=new Date(now.getFullYear(),now.getMonth(),i);
+if(d.getMonth()!==now.getMonth())break;
+let key="sales_"+d.toLocaleDateString();
+let sales=JSON.parse(localStorage.getItem(key))||[];
+sales.forEach(s=> total+=s.profit);
+}
+document.getElementById("monthProfit").innerText="ربح الشهر: "+total;
+}
+
+function clearToday(){
+let today=new Date().toLocaleDateString();
+localStorage.removeItem("sales_"+today);
+showSales();
+}
+
+window.onload=function(){
+showSales();
+showDebts();
+}
+
+</script>
+
+</body>
+</html>
